@@ -48,9 +48,9 @@ BEGIN
             VALUE "CompanyName", "Rosalie"
             VALUE "FileDescription", "Mupen-MPN"
             VALUE "FileVersion", "1.0.0.1"
-            VALUE "InternalName", "RMG-K.exe"
+            VALUE "InternalName", "Mupen-MPN.exe"
             VALUE "LegalCopyright", "Copyright (C) 2020-2025 Rosalie Wanders"
-            VALUE "OriginalFilename", "RMG-K.exe"
+            VALUE "OriginalFilename", "Mupen-MPN.exe"
             VALUE "ProductName", "Mupen-MPN"
             VALUE "ProductVersion", "1.0.0.1"
         END

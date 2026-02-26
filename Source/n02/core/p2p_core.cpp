@@ -314,7 +314,6 @@ void p2p_set_ready(bool bx){
 		if (P2PCORE.connection && P2PCORE.CONNECTED){
 			P2PCORE.connection->send_tinst(PREADY, bx? PREADY_READY:PREADY_NREADY);
 		}
-		p2p_core_debug("You are marked as %s", bx? "ready":"not ready");
 	}
 }
 
@@ -378,9 +377,7 @@ bool p2p_WaitForPeerToLoadOrDie(){
 	//kprintf("WaitForPeerToLoad:" __FILE__ ":%i", __LINE__);
 	
 	sockaddr_in saddr;
-	
-	p2p_core_debug("Muffin loaded, waiting for Donut.");
-	
+		
 	P2PCORE.USERLOADED = true;
 	P2PCORE.PEERLOADED = false;
 	
@@ -703,9 +700,6 @@ void p2p_step(){
 									P2PCORE.connection->send_instruction(&kxx);
 									p2p_PING_TIME = p2p_GetTime();
 									P2PCORE.last_ping_sent_time = p2p_PING_TIME;
-									
-									p2p_send_chat("Using version: " P2P_VERSION);
-
 									p2p_peer_joined_callback();
 									
 								}

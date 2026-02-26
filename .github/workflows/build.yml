@@ -100,7 +100,7 @@ jobs:
         if: ${{ matrix.features == 'ON' && matrix.architecture == 'x86_64' && matrix.configuration == 'Release' }}
         uses: actions/upload-artifact@v5
         with:
-          name: RMG-K-Portable-Linux64-${{ env.GIT_REVISION }}
+          name: Mupen-MPN-Portable-Linux64-${{ env.GIT_REVISION }}
           path: Bin/*.AppImage
 
   build-windows:
@@ -175,13 +175,13 @@ jobs:
         if: ${{ matrix.features == 'ON' && matrix.configuration == 'Release' }}
         uses: actions/upload-artifact@v5
         with:
-          name: RMG-K-Portable-Windows64-${{ env.GIT_REVISION }}
+          name: Mupen-MPN-Portable-Windows64-${{ env.GIT_REVISION }}
           path: Bin/Release/*
       - name: Upload RMG (Installer)
         if: ${{ matrix.features == 'ON' && matrix.configuration == 'Release' }}
         uses: actions/upload-artifact@v5
         with:
-          name: RMG-K-Setup-Windows64-${{ env.GIT_REVISION }}
+          name: Mupen-MPN-Setup-Windows64-${{ env.GIT_REVISION }}
           path: Bin/*.exe
 
   release:
@@ -209,14 +209,14 @@ jobs:
           find artifacts -name "*.AppImage" -exec cp {} release/ \;
 
           # Zip Windows portable build
-          if [ -d "artifacts/RMG-K-Portable-Windows64-${{ env.VERSION }}" ]; then
-            cd "artifacts/RMG-K-Portable-Windows64-${{ env.VERSION }}"
-            zip -r "../../release/RMG-K-Portable-Windows64-${{ env.VERSION }}.zip" .
+          if [ -d "artifacts/Mupen-MPN-Portable-Windows64-${{ env.VERSION }}" ]; then
+            cd "artifacts/Mupen-MPN-Portable-Windows64-${{ env.VERSION }}"
+            zip -r "../../release/Mupen-MPN-Portable-Windows64-${{ env.VERSION }}.zip" .
             cd ../..
           fi
 
           # Copy Windows installer
-          find artifacts -name "RMG-K-Setup*.exe" -exec cp {} release/ \;
+          find artifacts -name "Mupen-MPN-Setup*.exe" -exec cp {} release/ \;
 
           ls -la release/
       - name: Create GitHub Release

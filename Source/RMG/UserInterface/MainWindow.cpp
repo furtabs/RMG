@@ -1601,7 +1601,7 @@ void MainWindow::checkForUpdates(bool silent, bool force)
     QNetworkAccessManager* networkAccessManager = new QNetworkAccessManager(this);
     connect(networkAccessManager, &QNetworkAccessManager::finished, this, &MainWindow::on_networkAccessManager_Finished);
     networkAccessManager->setTransferTimeout(15000);
-    networkAccessManager->get(QNetworkRequest(QUrl("https://api.github.com/repos/Jay-Day/RMG-K/releases/latest")));
+    networkAccessManager->get(QNetworkRequest(QUrl("https://api.github.com/repos/Jay-Day/Mupen-MPN/releases/latest")));
 }
 #endif // UPDATER
 
@@ -2885,7 +2885,7 @@ QString MainWindow::findRomByName(QString gameName)
 
 void MainWindow::on_Action_Help_Github(void)
 {
-    QDesktopServices::openUrl(QUrl("https://github.com/Jay-Day/RMG-K"));
+    QDesktopServices::openUrl(QUrl("https://github.com/Jay-Day/Mupen-MPN"));
 }
 
 void MainWindow::on_Action_Help_About(void)

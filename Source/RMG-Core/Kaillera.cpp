@@ -133,7 +133,7 @@ CORE_EXPORT bool CoreInitKaillera(void)
     char version[16];
     n02::getVersion(version);
 
-    // Load settings from RMG-K config into n02 globals
+    // Load settings from Mupen-MPN config into n02 globals
     int mode = CoreSettingsGetIntValue(SettingsID::Kaillera_ActiveMode);
     n02::activateMode(mode);
 
@@ -161,7 +161,7 @@ CORE_EXPORT bool CoreShutdownKaillera(void)
         CoreEndKailleraGame();
     }
 
-    // Save settings back to RMG-K config
+    // Save settings back to Mupen-MPN config
     CoreSettingsSetValue(SettingsID::Kaillera_ActiveMode, n02::getActiveMode());
 
     // Shutdown n02 subsystem

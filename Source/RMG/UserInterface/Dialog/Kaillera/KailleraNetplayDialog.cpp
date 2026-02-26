@@ -96,7 +96,7 @@ KailleraNetplayDialog::~KailleraNetplayDialog()
 
 void KailleraNetplayDialog::setupUI()
 {
-    setWindowTitle("RMG-K Netplay");
+    setWindowTitle("Mupen-MPN Netplay");
     setMinimumSize(520, 480);
     resize(580, 530);
 
@@ -116,8 +116,8 @@ void KailleraNetplayDialog::setupUI()
     auto* bottomLayout = new QHBoxLayout();
     auto* btnAbout = new QPushButton("About", this);
     connect(btnAbout, &QPushButton::clicked, this, [this]() {
-        QMessageBox::about(this, "About RMG-K Netplay",
-            "RMG-K Netplay\n\nKaillera client based on n02 (Open Kaillera)\nP2P mode only.\n\nhttps://github.com/Jay-Day/RMG-K");
+        QMessageBox::about(this, "About Mupen-MPN Netplay",
+            "Mupen-MPN Netplay\n\nKaillera client based on n02 (Open Kaillera)\nP2P mode only.\n\nhttps://github.com/Jay-Day/Mupen-MPN");
     });
     bottomLayout->addWidget(btnAbout);
     bottomLayout->addStretch();
@@ -239,7 +239,7 @@ QWidget* KailleraNetplayDialog::createP2PTab()
 
 void KailleraNetplayDialog::fetchWaitingGames()
 {
-    QNetworkRequest request(QUrl("http://kaillerareborn.2manygames.fr/game_list.php"));
+    QNetworkRequest request(QUrl("http://kaillerareborn.2manygames.fr:27887/plist.txt"));
     QNetworkReply* reply = m_netManager->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
@@ -253,8 +253,12 @@ void KailleraNetplayDialog::fetchWaitingGames()
             QString username = fields[i + 2].trimmed();
             QString emulator = fields[i + 3].trimmed();
             QString serverName = fields[i + 5].trimmed();
-            // Only show Mupen-MPN games
-            if (emulator != "Mupen-MPN") continue;
+            // Only show games where emulator contains 'Mupen-MPN'
+            if (!emulator.contains("Mupen-MPN", Qt::CaseInsensitive)) continue;
+            // Filter out games with more than 4 players (field i+4 = WaitingPlayers)
+            bool ok = false;
+            int numPlayers = fields[i + 4].trimmed().toInt(&ok);
+            if (!ok || numPlayers > 4) continue;
             // Filter private IPs
             bool isPrivate = false;
             if (hostPort.startsWith("10.") || hostPort.startsWith("192.168.") || hostPort.startsWith("127.")) {
@@ -755,7 +759,7 @@ void KailleraNetplayDialog::onWaitingGames()
 {
     m_btnWaitingGames->setEnabled(false);
 
-    QNetworkRequest request(QUrl("http://kaillerareborn.2manygames.fr/game_list.php"));
+    QNetworkRequest request(QUrl("http://kaillerareborn.2manygames.fr:27887/plist.txt"));
     QNetworkReply* reply = m_netManager->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         onWaitingGamesReply(reply);

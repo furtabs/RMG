@@ -2,7 +2,7 @@
  * n02 - Open Kaillera Client
  * Settings storage abstraction
  * Rewritten: stub implementation for Phase 1
- * Phase 3 will delegate to RMG-K CoreSettings
+ * Phase 3 will delegate to Mupen-MPN CoreSettings
  */
 #pragma once
 

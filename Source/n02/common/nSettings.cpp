@@ -1,7 +1,7 @@
 /*
  * n02 - Open Kaillera Client
  * Settings storage - stub implementation
- * Phase 3 will replace with RMG-K CoreSettings delegation
+ * Phase 3 will replace with Mupen-MPN CoreSettings delegation
  */
 #include "nSettings.h"
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ./BundleDependencies.sh "./Bin/Release/RMG-K.exe" "./Bin/Release/"
+# ./BundleDependencies.sh "./Bin/Release/Mupen-MPN.exe" "./Bin/Release/"
 #
 
 exe="$1"
@@ -39,7 +39,7 @@ done
 				--no-translations "$exe"
 
 # remove D3Dcompiler_47.dll - causes conflicts with Discord overlay injection
-# RMG-K uses OpenGL exclusively; Windows system copy is used if ever needed
+# Mupen-MPN uses OpenGL exclusively; Windows system copy is used if ever needed
 rm -f "$bin_dir/D3Dcompiler_47.dll"
 
 # needed by Qt at runtime

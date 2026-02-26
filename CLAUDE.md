@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-RMG-K (Rosalie's Mupen GUI - Kaillera) is a Nintendo 64 emulator frontend built on mupen64plus with Kaillera netplay support. Written in C++20, it uses Qt6 for the UI, SDL3 for input/audio, and integrates with the mupen64plus plugin architecture.
+Mupen-MPN (Rosalie's Mupen GUI - Kaillera) is a Nintendo 64 emulator frontend built on mupen64plus with Kaillera netplay support. Written in C++20, it uses Qt6 for the UI, SDL3 for input/audio, and integrates with the mupen64plus plugin architecture.
 
 ## Build Commands
 
@@ -120,7 +120,7 @@ RMG (Qt6 GUI) → RMG-Core (Shared Library) → mupen64plus-core + Plugins
 
 #### 1. mupen64plus Plugin Architecture
 
-RMG-K extends mupen64plus with custom plugins:
+Mupen-MPN extends mupen64plus with custom plugins:
 - **RSP**: Reality Signal Processor emulation (HLE/CXD4/Parallel)
 - **GFX**: Graphics rendering (GLideN64/Parallel/Angrylion)
 - **Audio**: Audio output (RMG-Audio)
@@ -259,7 +259,7 @@ Bin/Release/          # Build output (portable mode)
 
 **License Considerations**: angrylion-rdp-plus uses non-GPL license. Only build if legally acceptable via `USE_ANGRYLION` option.
 
-## Key Features Unique to RMG-K
+## Key Features Unique to Mupen-MPN
 
 1. **Kaillera Netplay**: Windows-only online multiplayer via Kaillera protocol
 2. **Frame Delay Override**: User-configurable frame delay (0-9) for ping compensation
