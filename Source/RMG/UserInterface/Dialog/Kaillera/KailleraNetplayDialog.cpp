@@ -56,7 +56,6 @@ KailleraNetplayDialog::KailleraNetplayDialog(QWidget* parent)
     m_netManager = new QNetworkAccessManager(this);
 
     setupUI();
-    loadP2PStoredUsers();
     // Start the KSSDFA state machine timer
     n02::setStateInput(0);
     m_stateMachineTimer = new QTimer(this);
@@ -79,7 +78,6 @@ KailleraNetplayDialog::~KailleraNetplayDialog()
     }
     saveSettings();
     saveServerList();
-    saveP2PStoredUsers();
 
     // Save server table column widths
     if (m_serverTable)
@@ -214,52 +212,71 @@ QWidget* KailleraNetplayDialog::createP2PTab()
     addrLayout->addWidget(m_btnP2PPasteGo);
     connectLayout->addLayout(addrLayout);
 
-    // Stored list + side buttons
-    auto* storedAreaLayout = new QHBoxLayout();
+    m_p2pWaitingGamesTable = new QTableWidget(0, 5, connectTab);
+    m_p2pWaitingGamesTable->setHorizontalHeaderLabels({"Game", "Emulator", "User", "Server", "IP"});
+    m_p2pWaitingGamesTable->horizontalHeader()->setStretchLastSection(true);
+    m_p2pWaitingGamesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_p2pWaitingGamesTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_p2pWaitingGamesTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    connectLayout->addWidget(m_p2pWaitingGamesTable, 1);
 
-    // Left side: waiting games + Add/Edit/Delete buttons
-    auto* storedBtnLayout = new QVBoxLayout();
-    m_btnP2PWaitingGames = new QPushButton("waiting\ngames", connectTab);
-    m_btnP2PWaitingGames->setFixedWidth(60);
-    connect(m_btnP2PWaitingGames, &QPushButton::clicked, this, &KailleraNetplayDialog::onP2PWaitingGames);
-    storedBtnLayout->addWidget(m_btnP2PWaitingGames);
-    storedBtnLayout->addStretch();
-    m_btnP2PAddStored = new QPushButton("Add", connectTab);
-    m_btnP2PAddStored->setFixedWidth(60);
-    connect(m_btnP2PAddStored, &QPushButton::clicked, this, &KailleraNetplayDialog::onP2PAddStored);
-    storedBtnLayout->addWidget(m_btnP2PAddStored);
-    m_btnP2PEditStored = new QPushButton("Edit", connectTab);
-    m_btnP2PEditStored->setFixedWidth(60);
-    connect(m_btnP2PEditStored, &QPushButton::clicked, this, &KailleraNetplayDialog::onP2PEditStored);
-    storedBtnLayout->addWidget(m_btnP2PEditStored);
-    m_btnP2PDeleteStored = new QPushButton("Delete", connectTab);
-    m_btnP2PDeleteStored->setFixedWidth(60);
-    connect(m_btnP2PDeleteStored, &QPushButton::clicked, this, &KailleraNetplayDialog::onP2PDeleteStored);
-    storedBtnLayout->addWidget(m_btnP2PDeleteStored);
-    storedAreaLayout->addLayout(storedBtnLayout);
+    // When a row is selected, fill the IP/Code field
+    connect(m_p2pWaitingGamesTable, &QTableWidget::cellClicked, this, [this](int row, int col) {
+        Q_UNUSED(col);
+        if (row >= 0 && row < m_p2pWaitingGamesTable->rowCount()) {
+            QString ip = m_p2pWaitingGamesTable->item(row, 4)->text();
+            m_p2pHostEdit->setText(ip);
+        }
+    });
 
-    // Right side: Stored users table
-    auto* storedRightLayout = new QVBoxLayout();
-    storedRightLayout->addWidget(new QLabel("Stored:", connectTab));
-    m_p2pStoredTable = new QTableWidget(0, 2, connectTab);
-    m_p2pStoredTable->setHorizontalHeaderLabels({"Name", "IP"});
-    m_p2pStoredTable->horizontalHeader()->setStretchLastSection(true);
-    m_p2pStoredTable->horizontalHeader()->resizeSection(0, 200);
-    m_p2pStoredTable->verticalHeader()->setVisible(false);
-    m_p2pStoredTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_p2pStoredTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_p2pStoredTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    connect(m_p2pStoredTable, &QTableWidget::cellClicked, this, &KailleraNetplayDialog::onP2PStoredClicked);
-    storedRightLayout->addWidget(m_p2pStoredTable, 1);
-    storedAreaLayout->addLayout(storedRightLayout, 1);
-
-    connectLayout->addLayout(storedAreaLayout, 1);
+    // Fetch waiting games when the tab is shown
+    QTimer::singleShot(0, this, [this]() { fetchWaitingGames(); });
 
     subTabs->addTab(connectTab, "Connect");
-
     layout->addWidget(subTabs);
-
     return tab;
+}
+
+void KailleraNetplayDialog::fetchWaitingGames()
+{
+    QNetworkRequest request(QUrl("http://kaillerareborn.2manygames.fr/game_list.php"));
+    QNetworkReply* reply = m_netManager->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        m_p2pWaitingGamesTable->setRowCount(0);
+        QByteArray data = reply->readAll();
+        if (data.size() < 50) return;
+        QStringList fields = QString::fromUtf8(data).split('|', Qt::SkipEmptyParts);
+        for (int i = 0; i + 6 < fields.size(); i += 7) {
+            QString gameName = fields[i].trimmed();
+            QString hostPort = fields[i + 1].trimmed();
+            QString username = fields[i + 2].trimmed();
+            QString emulator = fields[i + 3].trimmed();
+            QString serverName = fields[i + 5].trimmed();
+            // Only show Mupen-MPN games
+            if (emulator != "Mupen-MPN") continue;
+            // Filter private IPs
+            bool isPrivate = false;
+            if (hostPort.startsWith("10.") || hostPort.startsWith("192.168.") || hostPort.startsWith("127.")) {
+                isPrivate = true;
+            } else if (hostPort.startsWith("172.")) {
+                QStringList octets = hostPort.split('.');
+                if (octets.size() >= 2) {
+                    int second = octets[1].toInt();
+                    if (second >= 16 && second <= 31)
+                        isPrivate = true;
+                }
+            }
+            if (isPrivate) continue;
+            int row = m_p2pWaitingGamesTable->rowCount();
+            m_p2pWaitingGamesTable->insertRow(row);
+            m_p2pWaitingGamesTable->setItem(row, 0, new QTableWidgetItem(gameName));
+            m_p2pWaitingGamesTable->setItem(row, 1, new QTableWidgetItem(emulator));
+            m_p2pWaitingGamesTable->setItem(row, 2, new QTableWidgetItem(username));
+            m_p2pWaitingGamesTable->setItem(row, 3, new QTableWidgetItem(serverName));
+            m_p2pWaitingGamesTable->setItem(row, 4, new QTableWidgetItem(hostPort));
+        }
+    });
 }
 
 void KailleraNetplayDialog::loadSettings()
@@ -1105,104 +1122,6 @@ void KailleraNetplayDialog::onP2PJoin()
     }
 }
 
-// ---- P2P stored users persistence ----
-
-void KailleraNetplayDialog::loadP2PStoredUsers()
-{
-    QSettings settings("RMG-K", "n02");
-    int count = settings.value("P2P_StoredCount", 0).toInt();
-    m_p2pStoredUsers.clear();
-    for (int i = 0; i < count; i++)
-    {
-        P2PStoredEntry entry;
-        entry.name = settings.value(QString("P2P_StoredName_%1").arg(i)).toString();
-        entry.host = settings.value(QString("P2P_StoredHost_%1").arg(i)).toString();
-        if (!entry.name.isEmpty() || !entry.host.isEmpty())
-            m_p2pStoredUsers.append(entry);
-    }
-    refreshP2PStoredDisplay();
-}
-
-void KailleraNetplayDialog::saveP2PStoredUsers()
-{
-    QSettings settings("RMG-K", "n02");
-    settings.setValue("P2P_StoredCount", m_p2pStoredUsers.size());
-    for (int i = 0; i < m_p2pStoredUsers.size(); i++)
-    {
-        settings.setValue(QString("P2P_StoredName_%1").arg(i), m_p2pStoredUsers[i].name);
-        settings.setValue(QString("P2P_StoredHost_%1").arg(i), m_p2pStoredUsers[i].host);
-    }
-}
-
-void KailleraNetplayDialog::refreshP2PStoredDisplay()
-{
-    if (!m_p2pStoredTable) return;
-    m_p2pStoredTable->setRowCount(m_p2pStoredUsers.size());
-    for (int i = 0; i < m_p2pStoredUsers.size(); i++)
-    {
-        m_p2pStoredTable->setItem(i, 0, new QTableWidgetItem(m_p2pStoredUsers[i].name));
-        m_p2pStoredTable->setItem(i, 1, new QTableWidgetItem(m_p2pStoredUsers[i].host));
-    }
-}
-
-void KailleraNetplayDialog::onP2PStoredClicked(int row, int column)
-{
-    (void)column;
-    if (row >= 0 && row < m_p2pStoredUsers.size())
-    {
-        m_p2pHostEdit->setText(m_p2pStoredUsers[row].host);
-    }
-}
-
-void KailleraNetplayDialog::onP2PAddStored()
-{
-    QString name = QInputDialog::getText(this, "Add Stored Entry", "Name:");
-    if (name.isEmpty()) return;
-    QString host = QInputDialog::getText(this, "Add Stored Entry", "IP/Code:");
-    if (host.isEmpty()) return;
-
-    P2PStoredEntry entry;
-    entry.name = name;
-    entry.host = host.remove(' ');
-    m_p2pStoredUsers.append(entry);
-    refreshP2PStoredDisplay();
-}
-
-void KailleraNetplayDialog::onP2PEditStored()
-{
-    int row = m_p2pStoredTable ? m_p2pStoredTable->currentRow() : -1;
-    if (row < 0 || row >= m_p2pStoredUsers.size())
-    {
-        QMessageBox::information(this, "Edit", "Select a stored entry first.");
-        return;
-    }
-
-    bool ok = false;
-    QString name = QInputDialog::getText(this, "Edit Stored Entry", "Name:",
-                                         QLineEdit::Normal, m_p2pStoredUsers[row].name, &ok);
-    if (!ok) return;
-    QString host = QInputDialog::getText(this, "Edit Stored Entry", "IP/Code:",
-                                         QLineEdit::Normal, m_p2pStoredUsers[row].host, &ok);
-    if (!ok) return;
-
-    m_p2pStoredUsers[row].name = name;
-    m_p2pStoredUsers[row].host = host.remove(' ');
-    refreshP2PStoredDisplay();
-}
-
-void KailleraNetplayDialog::onP2PDeleteStored()
-{
-    int row = m_p2pStoredTable ? m_p2pStoredTable->currentRow() : -1;
-    if (row < 0 || row >= m_p2pStoredUsers.size())
-    {
-        QMessageBox::information(this, "Delete", "Select a stored entry first.");
-        return;
-    }
-    m_p2pStoredUsers.removeAt(row);
-    refreshP2PStoredDisplay();
-}
-
-
 void KailleraNetplayDialog::onP2PPasteAndGo()
 {
     QString clip = QApplication::clipboard()->text().trimmed();
@@ -1212,24 +1131,6 @@ void KailleraNetplayDialog::onP2PPasteAndGo()
     clip.remove(' ');
 
     m_p2pHostEdit->setText(clip);
-    onP2PJoin();
-}
-
-void KailleraNetplayDialog::onP2PWaitingGames()
-{
-    KailleraWaitingGamesDialog dlg(this);
-    if (dlg.exec() != QDialog::Accepted) return;
-
-    QString code = dlg.selectedCode();
-    QString host = dlg.selectedHost();
-    if (code.isEmpty() && host.isEmpty()) return;
-
-    // Fill the address field and connect
-    if (!code.isEmpty())
-        m_p2pHostEdit->setText(code);
-    else
-        m_p2pHostEdit->setText(host);
-
     onP2PJoin();
 }
 

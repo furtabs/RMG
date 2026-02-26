@@ -179,7 +179,7 @@ KailleraP2PDialog::~KailleraP2PDialog()
 
 void KailleraP2PDialog::setupUI()
 {
-    setWindowTitle(m_isHost ? "Hosting P2P" : "P2P Game");
+    setWindowTitle("Netplay Lobby - " + m_gameName);
     setMinimumSize(520, 420);
     resize(560, 480);
 
@@ -204,7 +204,7 @@ void KailleraP2PDialog::setupUI()
     chatInputLayout->addWidget(m_btnChat);
     mainLayout->addLayout(chatInputLayout);
 
-    // Button row: Ready, Drop Game, Record game checkbox  |  Host group
+    // Button row: Ready | Host group
     auto* bottomLayout = new QHBoxLayout();
 
     // Left side: buttons
@@ -217,16 +217,21 @@ void KailleraP2PDialog::setupUI()
     } else {
         m_btnReady = nullptr; // No Ready/Start button for clients
     }
-    m_btnDrop = new QPushButton("Drop Game", this);
-    btnRow->addWidget(m_btnDrop);
+    // Removed Drop Game button and Record game checkbox
     btnRow->addStretch();
-    m_recordCheck = new QCheckBox("Record game", this);
-    connect(m_recordCheck, &QCheckBox::toggled, this, [](bool checked) {
-        extern bool n02_kaillera_recording_enabled;
-        n02_kaillera_recording_enabled = checked;
-    });
-    btnRow->addWidget(m_recordCheck);
     leftLayout->addLayout(btnRow);
+
+    // Move 'Show on public game list' to main area (not in host group)
+    if (m_isHost) {
+        m_enlistCheck = new QCheckBox("Show on public game list", this);
+        leftLayout->addWidget(m_enlistCheck);
+        connect(m_enlistCheck, &QCheckBox::toggled, this, [this](bool checked) {
+            if (checked)
+                enlistGame();
+            else
+                unenlistGame();
+        });
+    }
 
     bottomLayout->addLayout(leftLayout, 1);
 
@@ -236,16 +241,13 @@ void KailleraP2PDialog::setupUI()
         m_hostGroup = new QGroupBox("Host:", this);
         auto* hostLayout = new QVBoxLayout(m_hostGroup);
 
-        auto* fdlyLayout = new QHBoxLayout();
-        fdlyLayout->addWidget(new QLabel("Frame Delay:", m_hostGroup));
-        m_frameDelayCombo = new QComboBox(m_hostGroup);
-        m_frameDelayCombo->addItem("Auto");
-        for (int i = 1; i <= 9; i++)
-        {
-            m_frameDelayCombo->addItem(QString::number(i));
-        }
-        fdlyLayout->addWidget(m_frameDelayCombo);
-        hostLayout->addLayout(fdlyLayout);
+        auto* bufferLayout = new QHBoxLayout();
+        bufferLayout->addWidget(new QLabel("Buffer:", m_hostGroup));
+        m_bufferSpin = new QSpinBox(m_hostGroup);
+        m_bufferSpin->setRange(1, 99);
+        m_bufferSpin->setValue(5); // Default to 5
+        bufferLayout->addWidget(m_bufferSpin);
+        hostLayout->addLayout(bufferLayout);
 
         hostLayout->addWidget(new QLabel("Connect code:", m_hostGroup));
 
@@ -257,18 +259,9 @@ void KailleraP2PDialog::setupUI()
         m_btnCopy = new QPushButton("Copy", m_hostGroup);
         hostLayout->addWidget(m_btnCopy);
 
-        m_enlistCheck = new QCheckBox("Show on public\ngame list", m_hostGroup);
-        hostLayout->addWidget(m_enlistCheck);
-
         bottomLayout->addWidget(m_hostGroup);
 
         connect(m_btnCopy, &QPushButton::clicked, this, &KailleraP2PDialog::onCopyConnectCode);
-        connect(m_enlistCheck, &QCheckBox::toggled, this, [this](bool checked) {
-            if (checked)
-                enlistGame();
-            else
-                unenlistGame();
-        });
     }
 
     mainLayout->addLayout(bottomLayout);
@@ -278,7 +271,15 @@ void KailleraP2PDialog::setupUI()
     connect(m_chatInput, &QLineEdit::returnPressed, this, &KailleraP2PDialog::onSendChat);
     if (m_btnReady)
         connect(m_btnReady, &QPushButton::clicked, this, &KailleraP2PDialog::onReady);
-    connect(m_btnDrop, &QPushButton::clicked, this, &KailleraP2PDialog::onDrop);
+
+    // Log buffer changes in chat
+    if (m_isHost && m_bufferSpin) {
+        connect(m_bufferSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
+            if (m_chat) {
+                m_chat->append("<span style='color:cornflowerblue;'>" + timestamp() + "Buffer has changed to " + QString::number(value) + "</span>");
+            }
+        });
+    }
 }
 
 void KailleraP2PDialog::connectSignals()
@@ -837,10 +838,9 @@ void KailleraP2PDialog::onReady()
 {
     m_ready = !m_ready;
 
-    // Update the selected delay in UIBridge before setting ready
-    if (m_isHost && m_frameDelayCombo)
-    {
-        KailleraUIBridge::instance().setSelectedDelay(m_frameDelayCombo->currentIndex());
+    // Update the selected buffer in UIBridge before setting ready
+    if (m_isHost && m_bufferSpin) {
+        KailleraUIBridge::instance().setSelectedDelay(m_bufferSpin->value());
     }
 
     // Only the host's ready state matters: if host clicks Start, start the game for all

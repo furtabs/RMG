@@ -19,6 +19,7 @@
 #include <QLabel>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QSpinBox>
 #include <QTimer>
 #include <QGroupBox>
 
@@ -91,13 +92,11 @@ private:
 
     // Control buttons
     QPushButton* m_btnReady = nullptr;
-    QPushButton* m_btnDrop = nullptr;
-    QCheckBox* m_recordCheck = nullptr;
     QCheckBox* m_enlistCheck = nullptr;
 
     // Host group
     QGroupBox* m_hostGroup = nullptr;
-    QComboBox* m_frameDelayCombo = nullptr;
+    QSpinBox* m_bufferSpin = nullptr;
     QLineEdit* m_connectCodeEdit = nullptr;
     QPushButton* m_btnCopy = nullptr;
 

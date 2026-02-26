@@ -55,11 +55,6 @@ private slots:
     void onP2PHost();
     void onP2PJoin();
     void onP2PPasteAndGo();
-    void onP2PAddStored();
-    void onP2PEditStored();
-    void onP2PDeleteStored();
-    void onP2PWaitingGames();
-    void onP2PStoredClicked(int row, int column);
 
     // Network replies
     void onWaitingGamesReply(QNetworkReply* reply);
@@ -125,7 +120,8 @@ private:
     QLineEdit* m_p2pHostEdit = nullptr;
     QPushButton* m_btnP2PJoin = nullptr;
     QPushButton* m_btnP2PPasteGo = nullptr;
-    QTableWidget* m_p2pStoredTable = nullptr;
+    QTableWidget* m_p2pWaitingGamesTable = nullptr;
+        void fetchWaitingGames();
     QPushButton* m_btnP2PAddStored = nullptr;
     QPushButton* m_btnP2PEditStored = nullptr;
     QPushButton* m_btnP2PDeleteStored = nullptr;
