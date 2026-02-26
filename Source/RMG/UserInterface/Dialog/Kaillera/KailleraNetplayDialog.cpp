@@ -56,32 +56,12 @@ KailleraNetplayDialog::KailleraNetplayDialog(QWidget* parent)
     m_netManager = new QNetworkAccessManager(this);
 
     setupUI();
-    loadSettings();
-    loadServerList();
     loadP2PStoredUsers();
-
     // Start the KSSDFA state machine timer
-    // This replaces the blocking while-loop in n02::selectServerDialog()
     n02::setStateInput(0);
     m_stateMachineTimer = new QTimer(this);
     connect(m_stateMachineTimer, &QTimer::timeout, this, &KailleraNetplayDialog::onStateMachineTimer);
     m_stateMachineTimer->start(1);
-
-    // Auto-ping all servers on dialog load.
-    // pingServerRow() blocks (up to 2s per server), so we defer to after
-    // the dialog is shown and process events between each ping.
-    // Disable sorting during the loop so row indices stay stable.
-    QTimer::singleShot(100, this, [this]() {
-        m_serverTable->setSortingEnabled(false);
-        for (int i = 0; i < m_servers.size(); i++)
-        {
-            pingServerRow(i);
-            QApplication::processEvents();
-        }
-        m_serverTable->setSortingEnabled(true);
-        m_serverTable->sortByColumn(2, Qt::AscendingOrder);
-    });
-
     // Restore saved geometry
     std::string geom = CoreSettingsGetStringValue(SettingsID::Kaillera_NetplayGeometry);
     if (!geom.empty())
@@ -122,35 +102,24 @@ void KailleraNetplayDialog::setupUI()
     setMinimumSize(520, 480);
     resize(580, 530);
 
-    setStyleSheet("QTableWidget::item:selected { background-color: #0078D7; color: white; }");
-
     auto* mainLayout = new QVBoxLayout(this);
-
-    // User settings row (shared across all modes)
+    // User settings row
     auto* settingsLayout = new QHBoxLayout();
     settingsLayout->addWidget(new QLabel("Username:", this));
     m_usernameEdit = new QLineEdit(this);
     m_usernameEdit->setMaxLength(31);
     settingsLayout->addWidget(m_usernameEdit);
     mainLayout->addLayout(settingsLayout);
-
-    // Mode tabs
+    // Only P2P tab
     m_tabWidget = new QTabWidget(this);
-    m_tabWidget->addTab(createServerTab(), "Server");
     m_tabWidget->addTab(createP2PTab(), "P2P");
-    m_tabWidget->addTab(createPlaybackTab(), "Playback");
-    connect(m_tabWidget, &QTabWidget::currentChanged, this, &KailleraNetplayDialog::onTabChanged);
     mainLayout->addWidget(m_tabWidget);
-
     // Bottom buttons
     auto* bottomLayout = new QHBoxLayout();
     auto* btnAbout = new QPushButton("About", this);
     connect(btnAbout, &QPushButton::clicked, this, [this]() {
         QMessageBox::about(this, "About RMG-K Netplay",
-            "RMG-K Netplay\n\n"
-            "Kaillera client based on n02 (Open Kaillera)\n"
-            "Supports Server, P2P, and Playback modes.\n\n"
-            "https://github.com/Jay-Day/RMG-K");
+            "RMG-K Netplay\n\nKaillera client based on n02 (Open Kaillera)\nP2P mode only.\n\nhttps://github.com/Jay-Day/RMG-K");
     });
     bottomLayout->addWidget(btnAbout);
     bottomLayout->addStretch();
@@ -158,89 +127,6 @@ void KailleraNetplayDialog::setupUI()
     connect(m_btnClose, &QPushButton::clicked, this, &QDialog::reject);
     bottomLayout->addWidget(m_btnClose);
     mainLayout->addLayout(bottomLayout);
-}
-
-QWidget* KailleraNetplayDialog::createServerTab()
-{
-    auto* tab = new QWidget();
-    auto* layout = new QVBoxLayout(tab);
-
-    // Frame delay at top of Server tab
-    auto* fdlyLayout = new QHBoxLayout();
-    fdlyLayout->addWidget(new QLabel("Frame Delay:", tab));
-    m_frameDelayCombo = new QComboBox(tab);
-    m_frameDelayCombo->addItem("Auto");
-    m_frameDelayCombo->addItem("1 frame (8ms)");
-    m_frameDelayCombo->addItem("2 frames (24ms)");
-    m_frameDelayCombo->addItem("3 frames (40ms)");
-    m_frameDelayCombo->addItem("4 frames (56ms)");
-    m_frameDelayCombo->addItem("5 frames (72ms)");
-    m_frameDelayCombo->addItem("6 frames (88ms)");
-    m_frameDelayCombo->addItem("7 frames (104ms)");
-    m_frameDelayCombo->addItem("8 frames (120ms)");
-    m_frameDelayCombo->addItem("9 frames (136ms)");
-    fdlyLayout->addWidget(m_frameDelayCombo);
-    fdlyLayout->addStretch();
-    layout->addLayout(fdlyLayout);
-
-    // Server list table (3 columns: Name, IP, Ping)
-    m_serverTable = new QTableWidget(0, 3, tab);
-    m_serverTable->setHorizontalHeaderLabels({"Name", "IP", "Ping"});
-    m_serverTable->horizontalHeader()->setStretchLastSection(true);
-    m_serverTable->verticalHeader()->setVisible(false);
-    m_serverTable->setShowGrid(false);
-    m_serverTable->setStyleSheet("QTableWidget { background-color: #3a3a3a; }");
-    m_serverTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_serverTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_serverTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_serverTable->setSortingEnabled(true);
-    m_serverTable->horizontalHeader()->setMinimumSectionSize(16);
-    m_serverTable->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_serverTable, &QTableWidget::cellDoubleClicked, this, &KailleraNetplayDialog::onServerDoubleClicked);
-    connect(m_serverTable, &QWidget::customContextMenuRequested, this, &KailleraNetplayDialog::onServerRightClicked);
-    layout->addWidget(m_serverTable);
-
-    // Restore saved column widths
-    std::string savedWidths = CoreSettingsGetStringValue(SettingsID::Kaillera_ServerColumnWidths);
-    if (!savedWidths.empty())
-    {
-        QStringList widths = QString::fromStdString(savedWidths).split(",");
-        for (int i = 0; i < widths.size() && i < m_serverTable->columnCount(); ++i)
-        {
-            int w = widths[i].toInt();
-            if (w > 0)
-                m_serverTable->setColumnWidth(i, w);
-        }
-    }
-
-
-    // Buttons
-    auto* btnLayout = new QHBoxLayout();
-    m_btnAdd = new QPushButton("Add", tab);
-    m_btnEdit = new QPushButton("Edit", tab);
-    m_btnDelete = new QPushButton("Delete", tab);
-    m_btnLiveList = new QPushButton("Live Servers", tab);
-    m_btnWaitingGames = new QPushButton("Waiting Games", tab);
-    m_btnConnect = new QPushButton("Connect", tab);
-
-    connect(m_btnAdd, &QPushButton::clicked, this, &KailleraNetplayDialog::onAddServer);
-    connect(m_btnEdit, &QPushButton::clicked, this, &KailleraNetplayDialog::onEditServer);
-    connect(m_btnDelete, &QPushButton::clicked, this, &KailleraNetplayDialog::onDeleteServer);
-    connect(m_btnLiveList, &QPushButton::clicked, this, &KailleraNetplayDialog::onLiveServerList);
-    connect(m_btnWaitingGames, &QPushButton::clicked, this, &KailleraNetplayDialog::onWaitingGames);
-    connect(m_btnConnect, &QPushButton::clicked, this, &KailleraNetplayDialog::onConnectServer);
-
-    btnLayout->addWidget(m_btnAdd);
-    btnLayout->addWidget(m_btnEdit);
-    btnLayout->addWidget(m_btnDelete);
-    btnLayout->addWidget(m_btnLiveList);
-    btnLayout->addWidget(m_btnWaitingGames);
-    btnLayout->addStretch();
-    btnLayout->addWidget(m_btnConnect);
-    layout->addLayout(btnLayout);
-
-
-    return tab;
 }
 
 QWidget* KailleraNetplayDialog::createP2PTab()
@@ -372,58 +258,6 @@ QWidget* KailleraNetplayDialog::createP2PTab()
     subTabs->addTab(connectTab, "Connect");
 
     layout->addWidget(subTabs);
-
-    return tab;
-}
-
-QWidget* KailleraNetplayDialog::createPlaybackTab()
-{
-    auto* tab = new QWidget();
-    auto* layout = new QVBoxLayout(tab);
-
-    // Recordings table
-    m_playbackTable = new QTableWidget(0, 6, tab);
-    m_playbackTable->setHorizontalHeaderLabels({"Date", "Players", "Game", "Duration", "Size", "Filename"});
-    m_playbackTable->horizontalHeader()->setStretchLastSection(true);
-    m_playbackTable->verticalHeader()->setVisible(false);
-    m_playbackTable->setShowGrid(false);
-    m_playbackTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_playbackTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_playbackTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_playbackTable->setSortingEnabled(true);
-    m_playbackTable->horizontalHeader()->setMinimumSectionSize(16);
-    m_playbackTable->setColumnWidth(0, 100);
-    m_playbackTable->setColumnWidth(1, 160);
-    m_playbackTable->setColumnWidth(2, 140);
-    m_playbackTable->setColumnWidth(3, 60);
-    m_playbackTable->setColumnWidth(4, 60);
-    connect(m_playbackTable, &QTableWidget::cellDoubleClicked, this, &KailleraNetplayDialog::onPlaybackDoubleClicked);
-    layout->addWidget(m_playbackTable);
-
-    // Buttons
-    auto* btnLayout = new QHBoxLayout();
-    m_btnPlay = new QPushButton("Play", tab);
-    m_btnStop = new QPushButton("Stop", tab);
-    m_btnPBDelete = new QPushButton("Delete", tab);
-    m_btnPBRefresh = new QPushButton("Refresh", tab);
-    m_btnOpenFolder = new QPushButton("Open Folder", tab);
-
-    connect(m_btnPlay, &QPushButton::clicked, this, &KailleraNetplayDialog::onPlaybackPlay);
-    connect(m_btnStop, &QPushButton::clicked, this, &KailleraNetplayDialog::onPlaybackStop);
-    connect(m_btnPBDelete, &QPushButton::clicked, this, &KailleraNetplayDialog::onPlaybackDelete);
-    connect(m_btnPBRefresh, &QPushButton::clicked, this, &KailleraNetplayDialog::onPlaybackRefresh);
-    connect(m_btnOpenFolder, &QPushButton::clicked, this, &KailleraNetplayDialog::onPlaybackOpenFolder);
-
-    btnLayout->addWidget(m_btnPlay);
-    btnLayout->addWidget(m_btnStop);
-    btnLayout->addWidget(m_btnPBDelete);
-    btnLayout->addWidget(m_btnPBRefresh);
-    btnLayout->addStretch();
-    btnLayout->addWidget(m_btnOpenFolder);
-    layout->addLayout(btnLayout);
-
-    // Populate on creation
-    populatePlaybackList();
 
     return tab;
 }
@@ -1367,6 +1201,7 @@ void KailleraNetplayDialog::onP2PDeleteStored()
     m_p2pStoredUsers.removeAt(row);
     refreshP2PStoredDisplay();
 }
+
 
 void KailleraNetplayDialog::onP2PPasteAndGo()
 {

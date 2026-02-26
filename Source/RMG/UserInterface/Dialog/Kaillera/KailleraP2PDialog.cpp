@@ -211,9 +211,13 @@ void KailleraP2PDialog::setupUI()
     auto* leftLayout = new QVBoxLayout();
 
     auto* btnRow = new QHBoxLayout();
-    m_btnReady = new QPushButton("Ready", this);
+    if (m_isHost) {
+        m_btnReady = new QPushButton("Start", this);
+        btnRow->addWidget(m_btnReady);
+    } else {
+        m_btnReady = nullptr; // No Ready/Start button for clients
+    }
     m_btnDrop = new QPushButton("Drop Game", this);
-    btnRow->addWidget(m_btnReady);
     btnRow->addWidget(m_btnDrop);
     btnRow->addStretch();
     m_recordCheck = new QCheckBox("Record game", this);
@@ -272,7 +276,8 @@ void KailleraP2PDialog::setupUI()
     // Connect button actions
     connect(m_btnChat, &QPushButton::clicked, this, &KailleraP2PDialog::onSendChat);
     connect(m_chatInput, &QLineEdit::returnPressed, this, &KailleraP2PDialog::onSendChat);
-    connect(m_btnReady, &QPushButton::clicked, this, &KailleraP2PDialog::onReady);
+    if (m_btnReady)
+        connect(m_btnReady, &QPushButton::clicked, this, &KailleraP2PDialog::onReady);
     connect(m_btnDrop, &QPushButton::clicked, this, &KailleraP2PDialog::onDrop);
 }
 
@@ -838,16 +843,18 @@ void KailleraP2PDialog::onReady()
         KailleraUIBridge::instance().setSelectedDelay(m_frameDelayCombo->currentIndex());
     }
 
-    p2p_set_ready(m_ready);
-
-    if (m_ready)
+    // Only the host's ready state matters: if host clicks Start, start the game for all
+    if (m_isHost && m_ready)
     {
-        m_chat->append(timestamp() + "Ready!");
+        p2p_set_ready(true); // Host ready, start game
+        m_chat->append(timestamp() + "Host started the game!");
     }
-    else
+    else if (m_isHost && !m_ready)
     {
-        m_chat->append(timestamp() + "Not ready.");
+        p2p_set_ready(false); // Host cancelled
+        m_chat->append(timestamp() + "Host cancelled game start.");
     }
+    // Clients do not have a Ready/Start button
 }
 
 void KailleraP2PDialog::onDrop()
