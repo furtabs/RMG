@@ -1,3 +1,19 @@
+#ifdef NETPLAY
+// Register cheat sync callback at startup
+struct CheatSyncCallbackRegistrar {
+    CheatSyncCallbackRegistrar() {
+        CoreSetKailleraCheatSyncCallback([](const uint8_t* data, size_t size) {
+            // Deserialize and apply received cheats
+            std::vector<CoreCheat> cheats;
+            if (deserialize_cheat_vector(data, size, cheats)) {
+                CoreSetNetplayCheats(cheats);
+                CoreApplyNetplayCheats();
+            }
+        });
+    }
+};
+static CheatSyncCallbackRegistrar s_CheatSyncCallbackRegistrar;
+#endif
 /*
  * Rosalie's Mupen GUI - https://github.com/Rosalie241/RMG
  *  Copyright (C) 2020-2025 Rosalie Wanders <rosalie@mailbox.org>
@@ -121,6 +137,16 @@ bool CoreSetEepromBuffer(const uint8_t* data, size_t size) {
 
 // Kaillera PIF sync callback (called from mupen64plus-core after netplay sync)
 static void KailleraPifSyncCallback(struct pif* pif)
+    // Example: send cheats on every input sync (for demo; optimize to only send on change in production)
+    {
+        std::vector<CoreCheat> cheats;
+        // You may want to filter for only enabled cheats/options
+        if (CoreGetCurrentCheats({}, cheats)) {
+            std::vector<uint8_t> cheat_buf;
+            serialize_cheat_vector(cheats, cheat_buf);
+            CoreKailleraSendCheatSync(cheat_buf.data(), cheat_buf.size());
+        }
+    }
 {
 #ifdef NETPLAY
     if (!CoreHasInitKaillera()) {

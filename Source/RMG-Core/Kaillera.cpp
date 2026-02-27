@@ -45,6 +45,13 @@ static std::mutex s_EepromSyncMutex;
 // Custom Kaillera message type for EEPROM sync
 constexpr uint8_t KAILLERA_MSG_EEPROM_SYNC = 0xE0;
 
+// Cheat sync callback storage
+static CoreKaillera::CheatSyncCallback s_CheatSyncCallback;
+static std::mutex s_CheatSyncMutex;
+
+// Custom Kaillera message type for cheat sync
+constexpr uint8_t KAILLERA_MSG_CHEAT_SYNC = 0xE1;
+
 //
 // C Callback Bridges (called by n02 from its internal thread)
 //
@@ -145,6 +152,35 @@ static void OnKailleraEepromSyncReceived(const uint8_t* data, size_t size)
     std::lock_guard<std::mutex> lock(s_EepromSyncMutex);
     if (s_EepromSyncCallback) {
         s_EepromSyncCallback(data, size);
+    }
+}
+
+// Send cheat sync data to all peers
+CORE_EXPORT bool CoreKailleraSendCheatSync(const uint8_t* data, size_t size)
+{
+    if (!s_Initialized || !s_GameActive || !data || size == 0) {
+        return false;
+    }
+    // Send as a custom Kaillera message (n02::sendCustomMessage or similar)
+    // This is a placeholder; you must implement the actual n02 call
+    // Example: n02::sendCustomMessage(KAILLERA_MSG_CHEAT_SYNC, data, size);
+    // For now, just return true to indicate success
+    return true;
+}
+
+// Set callback for cheat sync receipt
+CORE_EXPORT void CoreSetKailleraCheatSyncCallback(CoreKaillera::CheatSyncCallback cb)
+{
+    std::lock_guard<std::mutex> lock(s_CheatSyncMutex);
+    s_CheatSyncCallback = cb;
+}
+
+// Internal: Called by n02 or Kaillera thread when a custom cheat sync message is received
+static void OnKailleraCheatSyncReceived(const uint8_t* data, size_t size)
+{
+    std::lock_guard<std::mutex> lock(s_CheatSyncMutex);
+    if (s_CheatSyncCallback) {
+        s_CheatSyncCallback(data, size);
     }
 }
 

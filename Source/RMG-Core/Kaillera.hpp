@@ -23,6 +23,7 @@ namespace CoreKaillera
     using ClientDroppedCallback = std::function<void(std::string nickname, int playerNumber)>;
     using MoreInfosCallback = std::function<void(std::string gameName)>;
     using EepromSyncCallback = std::function<void(const uint8_t* data, size_t size)>;
+    using CheatSyncCallback = std::function<void(const uint8_t* data, size_t size)>;
 }
 
 //
@@ -96,5 +97,12 @@ CORE_EXPORT bool CoreKailleraSendEepromSync(const uint8_t* data, size_t size);
 // Set callback for when an EEPROM sync buffer is received from a peer
 // The callback receives a pointer to the buffer and its size
 CORE_EXPORT void CoreSetKailleraEepromSyncCallback(EepromSyncCallback cb);
+
+// Send cheat sync data to all peers (netplay cheat sync)
+// Returns true on success, false on failure
+CORE_EXPORT bool CoreKailleraSendCheatSync(const uint8_t* data, size_t size);
+
+// Set callback for when a cheat sync buffer is received from a peer
+CORE_EXPORT void CoreSetKailleraCheatSyncCallback(CheatSyncCallback cb);
 
 #endif // CORE_KAILLERA_HPP

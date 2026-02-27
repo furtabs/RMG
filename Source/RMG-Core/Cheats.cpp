@@ -24,6 +24,7 @@
 #include <fstream>
 #include <sstream>
 #include <format>
+#include <cstring>
 
 //
 // Local Structs
@@ -1139,3 +1140,118 @@ CORE_EXPORT bool CorePressGamesharkButton(bool enabled)
 
     return true;
 }
+
+// --- Cheat Sync Serialization ---
+namespace {
+    // Serialize a string (length + data)
+    void serialize_string(const std::string& str, std::vector<uint8_t>& out) {
+        uint32_t len = (uint32_t)str.size();
+        out.insert(out.end(), reinterpret_cast<uint8_t*>(&len), reinterpret_cast<uint8_t*>(&len) + sizeof(len));
+        out.insert(out.end(), str.begin(), str.end());
+    }
+    // Deserialize a string (length + data)
+    bool deserialize_string(const uint8_t*& ptr, const uint8_t* end, std::string& out) {
+        if (end - ptr < 4) return false;
+        uint32_t len = 0;
+        std::memcpy(&len, ptr, 4);
+        ptr += 4;
+        if (end - ptr < (ptrdiff_t)len) return false;
+        out.assign(reinterpret_cast<const char*>(ptr), len);
+        ptr += len;
+        return true;
+    }
+    // Serialize CoreCheatOption
+    void serialize_cheat_option(const CoreCheatOption& opt, std::vector<uint8_t>& out) {
+        serialize_string(opt.Name, out);
+        out.insert(out.end(), reinterpret_cast<const uint8_t*>(&opt.Value), reinterpret_cast<const uint8_t*>(&opt.Value) + sizeof(opt.Value));
+        out.insert(out.end(), reinterpret_cast<const uint8_t*>(&opt.Size), reinterpret_cast<const uint8_t*>(&opt.Size) + sizeof(opt.Size));
+    }
+    // Deserialize CoreCheatOption
+    bool deserialize_cheat_option(const uint8_t*& ptr, const uint8_t* end, CoreCheatOption& opt) {
+        if (!deserialize_string(ptr, end, opt.Name)) return false;
+        if (end - ptr < 8) return false;
+        std::memcpy(&opt.Value, ptr, 4); ptr += 4;
+        std::memcpy(&opt.Size, ptr, 4); ptr += 4;
+        return true;
+    }
+    // Serialize CoreCheatCode
+    void serialize_cheat_code(const CoreCheatCode& code, std::vector<uint8_t>& out) {
+        out.insert(out.end(), reinterpret_cast<const uint8_t*>(&code.Address), reinterpret_cast<const uint8_t*>(&code.Address) + sizeof(code.Address));
+        out.insert(out.end(), reinterpret_cast<const uint8_t*>(&code.Value), reinterpret_cast<const uint8_t*>(&code.Value) + sizeof(code.Value));
+        out.push_back(code.UseOptions ? 1 : 0);
+        out.insert(out.end(), reinterpret_cast<const uint8_t*>(&code.OptionIndex), reinterpret_cast<const uint8_t*>(&code.OptionIndex) + sizeof(code.OptionIndex));
+        out.insert(out.end(), reinterpret_cast<const uint8_t*>(&code.OptionSize), reinterpret_cast<const uint8_t*>(&code.OptionSize) + sizeof(code.OptionSize));
+    }
+    // Deserialize CoreCheatCode
+    bool deserialize_cheat_code(const uint8_t*& ptr, const uint8_t* end, CoreCheatCode& code) {
+        if (end - ptr < 13) return false;
+        std::memcpy(&code.Address, ptr, 4); ptr += 4;
+        std::memcpy(&code.Value, ptr, 4); ptr += 4;
+        code.UseOptions = (*ptr++ != 0);
+        std::memcpy(&code.OptionIndex, ptr, 4); ptr += 4;
+        std::memcpy(&code.OptionSize, ptr, 4); ptr += 4;
+        return true;
+    }
+    // Serialize CoreCheat
+    void serialize_cheat(const CoreCheat& cheat, std::vector<uint8_t>& out) {
+        serialize_string(cheat.Name, out);
+        serialize_string(cheat.Author, out);
+        serialize_string(cheat.Note, out);
+        out.push_back(cheat.HasOptions ? 1 : 0);
+        uint32_t opt_count = (uint32_t)cheat.CheatOptions.size();
+        out.insert(out.end(), reinterpret_cast<uint8_t*>(&opt_count), reinterpret_cast<uint8_t*>(&opt_count) + 4);
+        for (const auto& opt : cheat.CheatOptions) serialize_cheat_option(opt, out);
+        uint32_t code_count = (uint32_t)cheat.CheatCodes.size();
+        out.insert(out.end(), reinterpret_cast<uint8_t*>(&code_count), reinterpret_cast<uint8_t*>(&code_count) + 4);
+        for (const auto& code : cheat.CheatCodes) serialize_cheat_code(code, out);
+    }
+    // Deserialize CoreCheat
+    bool deserialize_cheat(const uint8_t*& ptr, const uint8_t* end, CoreCheat& cheat) {
+        if (!deserialize_string(ptr, end, cheat.Name)) return false;
+        if (!deserialize_string(ptr, end, cheat.Author)) return false;
+        if (!deserialize_string(ptr, end, cheat.Note)) return false;
+        if (end - ptr < 1) return false;
+        cheat.HasOptions = (*ptr++ != 0);
+        if (end - ptr < 4) return false;
+        uint32_t opt_count = 0;
+        std::memcpy(&opt_count, ptr, 4); ptr += 4;
+        cheat.CheatOptions.clear();
+        for (uint32_t i = 0; i < opt_count; ++i) {
+            CoreCheatOption opt;
+            if (!deserialize_cheat_option(ptr, end, opt)) return false;
+            cheat.CheatOptions.push_back(opt);
+        }
+        if (end - ptr < 4) return false;
+        uint32_t code_count = 0;
+        std::memcpy(&code_count, ptr, 4); ptr += 4;
+        cheat.CheatCodes.clear();
+        for (uint32_t i = 0; i < code_count; ++i) {
+            CoreCheatCode code;
+            if (!deserialize_cheat_code(ptr, end, code)) return false;
+            cheat.CheatCodes.push_back(code);
+        }
+        return true;
+    }
+    // Serialize a vector of cheats
+    void serialize_cheat_vector(const std::vector<CoreCheat>& cheats, std::vector<uint8_t>& out) {
+        uint32_t count = (uint32_t)cheats.size();
+        out.insert(out.end(), reinterpret_cast<uint8_t*>(&count), reinterpret_cast<uint8_t*>(&count) + 4);
+        for (const auto& cheat : cheats) serialize_cheat(cheat, out);
+    }
+    // Deserialize a vector of cheats
+    bool deserialize_cheat_vector(const uint8_t* data, size_t size, std::vector<CoreCheat>& cheats) {
+        cheats.clear();
+        const uint8_t* ptr = data;
+        const uint8_t* end = data + size;
+        if (end - ptr < 4) return false;
+        uint32_t count = 0;
+        std::memcpy(&count, ptr, 4); ptr += 4;
+        for (uint32_t i = 0; i < count; ++i) {
+            CoreCheat cheat;
+            if (!deserialize_cheat(ptr, end, cheat)) return false;
+            cheats.push_back(cheat);
+        }
+        return true;
+    }
+}
+// --- End Cheat Sync Serialization ---
