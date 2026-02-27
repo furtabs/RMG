@@ -60,6 +60,9 @@ extern "C" {
     };
 
     typedef void (*pif_sync_callback_t)(struct pif*);
+
+    typedef void* (*ptr_CoreGetEepromBuffer)(size_t*);
+    typedef void  (*ptr_CoreSetEepromBuffer)(const void*, size_t);
 }
 
 //
@@ -94,6 +97,28 @@ static void FrameCallback(unsigned int frameIndex)
 #endif
 }
 
+bool CoreGetEepromBuffer(uint8_t** buffer, size_t* size) {
+    static ptr_CoreGetEepromBuffer get_func = nullptr;
+    if (!get_func) {
+        get_func = (ptr_CoreGetEepromBuffer)m64p::Core.GetSymbol("CoreGetEepromBuffer");
+        if (!get_func) return false;
+    }
+    void* buf = get_func(size);
+    if (!buf) return false;
+    *buffer = (uint8_t*)buf;
+    return true;
+}
+
+bool CoreSetEepromBuffer(const uint8_t* data, size_t size) {
+    static ptr_CoreSetEepromBuffer set_func = nullptr;
+    if (!set_func) {
+        set_func = (ptr_CoreSetEepromBuffer)m64p::Core.GetSymbol("CoreSetEepromBuffer");
+        if (!set_func) return false;
+    }
+    set_func(data, size);
+    return true;
+}
+
 // Kaillera PIF sync callback (called from mupen64plus-core after netplay sync)
 static void KailleraPifSyncCallback(struct pif* pif)
 {
@@ -117,25 +142,35 @@ static void KailleraPifSyncCallback(struct pif* pif)
 
     // Only sync with Kaillera on controller read commands, and only once per frame
     // This prevents syncing on JCMD_STATUS which would send zero input
+    static bool s_EepromDirty = false;
+    static std::vector<uint8_t> s_EepromSyncBuffer;
+    static int s_EepromSyncFrame = -1;
     if (isControllerRead && !s_SyncedThisFrame) {
-        // First controller read this frame - read local input and sync with Kaillera
         s_SyncedThisFrame = true;  // Mark as synced BEFORE calling Kaillera
 
         // Read 4-byte controller response from local controller
-        // N64 controller format: [buttons_hi][buttons_lo][x_axis][y_axis]
         uint8_t* rx = pif->channels[0].rx_buf;
         uint32_t local_input = (rx[0] << 24) | (rx[1] << 16) | (rx[2] << 8) | rx[3];
 
         uint32_t sync_buffer[MAX_PLAYERS] = {0};
         sync_buffer[0] = local_input;
 
+        // If EEPROM was written since last sync, send it to peers and record the frame
+        if (s_EepromDirty) {
+            size_t eep_size = 0;
+            uint8_t* eep_buf = nullptr;
+            if (CoreGetEepromBuffer(&eep_buf, &eep_size) && eep_buf && eep_size > 0) {
+                s_EepromSyncBuffer.assign(eep_buf, eep_buf + eep_size);
+                CoreKailleraSendEepromSync(s_EepromSyncBuffer.data(), eep_size);
+                s_EepromSyncFrame = s_CurrentFrame;
+            }
+            s_EepromDirty = false;
+        }
+
         // Synchronize with Kaillera - this must be called exactly ONCE per emulator frame
         int ret = CoreModifyKailleraPlayValues(sync_buffer, sizeof(uint32_t));
 
         if (ret < 0) {
-            // Game ended or network error - cache zeros and continue
-            // Don't stop emulation - let user manually stop
-            // Mark game as inactive so UI buttons are re-enabled
             CoreMarkKailleraGameInactive();
             s_CachedNumReceived = 0;
             for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -145,19 +180,30 @@ static void KailleraPifSyncCallback(struct pif* pif)
         }
 
         if (ret == 0) {
-            // Frame delay period - n02 returns 0 while buffering initial frames
-            // Use cached input from previous sync (or zeros if none yet)
             return;
         }
 
         int num_received = ret / sizeof(uint32_t);
-
-        // Cache synced results for subsequent polls this frame and for writing to PIF
         s_CachedNumReceived = num_received;
         for (int i = 0; i < MAX_PLAYERS; i++) {
             s_CachedSyncBuffer[i] = sync_buffer[i];
         }
     }
+#ifdef NETPLAY
+// Register EEPROM sync callback at startup
+struct EepromSyncCallbackRegistrar {
+    EepromSyncCallbackRegistrar() {
+        CoreSetKailleraEepromSyncCallback([](const uint8_t* data, size_t size) {
+            // Queue EEPROM buffer to be applied at the next input sync/frame boundary
+            // For now, apply immediately (for deterministic lockstep, you may want to queue for s_CurrentFrame + frame delay)
+            if (data && size > 0) {
+                CoreSetEepromBuffer(data, size);
+            }
+        });
+    }
+};
+static EepromSyncCallbackRegistrar s_EepromSyncCallbackRegistrar;
+#endif
 
     // Write cached synchronized inputs to PIF RAM for all netplay players
     // (All polls within the same frame use the cached data)
@@ -195,6 +241,10 @@ static void KailleraPifSyncCallback(struct pif* pif)
                 else if (cmd == JCMD_PAK_WRITE && pif->channels[i].rx_buf != NULL) {
                     // No controller pak present
                     pif->channels[i].rx_buf[0] = 255;
+                }
+                else if (cmd == JCMD_EEPROM_WRITE && pif->channels[i].rx_buf != NULL) {
+                    // Mark EEPROM as dirty for sync at next input frame
+                    s_EepromDirty = true;
                 }
             }
         }

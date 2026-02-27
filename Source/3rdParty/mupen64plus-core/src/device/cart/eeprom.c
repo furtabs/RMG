@@ -81,3 +81,15 @@ void eeprom_write_block(struct eeprom* eeprom,
     }
 }
 
+void* get_eeprom_buffer(struct eeprom* eep, size_t* size) {
+    if (!eep || !eep->istorage || !eep->storage) return NULL;
+    if (size) *size = eep->istorage->size(eep->storage);
+    return eep->istorage->data(eep->storage);
+}
+
+void set_eeprom_buffer(struct eeprom* eep, const void* data, size_t size) {
+    if (!eep || !eep->istorage || !eep->storage || !data) return;
+    size_t sz = eep->istorage->size(eep->storage);
+    if (size > sz) size = sz;
+    memcpy(eep->istorage->data(eep->storage), data, size);
+}

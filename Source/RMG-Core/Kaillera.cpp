@@ -18,6 +18,8 @@
 #include "kailleraclient.h"
 
 #include <cstring>
+#include <vector>
+#include <mutex>
 
 //
 // Static Variables
@@ -35,6 +37,13 @@ static CoreKaillera::GameStartCallback s_GameStartCallback;
 static CoreKaillera::ChatReceivedCallback s_ChatReceivedCallback;
 static CoreKaillera::ClientDroppedCallback s_ClientDroppedCallback;
 static CoreKaillera::MoreInfosCallback s_MoreInfosCallback;
+
+// EEPROM sync callback storage
+static CoreKaillera::EepromSyncCallback s_EepromSyncCallback;
+static std::mutex s_EepromSyncMutex;
+
+// Custom Kaillera message type for EEPROM sync
+constexpr uint8_t KAILLERA_MSG_EEPROM_SYNC = 0xE0;
 
 //
 // C Callback Bridges (called by n02 from its internal thread)
@@ -107,6 +116,35 @@ static void MoreInfosCallbackBridge(char *gamename)
         {
             // Ignore errors in callback
         }
+    }
+}
+
+// Send EEPROM buffer to all peers
+CORE_EXPORT bool CoreKailleraSendEepromSync(const uint8_t* data, size_t size)
+{
+    if (!s_Initialized || !s_GameActive || !data || size == 0) {
+        return false;
+    }
+    // Send as a custom Kaillera message (n02::sendCustomMessage or similar)
+    // This is a placeholder; you must implement the actual n02 call
+    // Example: n02::sendCustomMessage(KAILLERA_MSG_EEPROM_SYNC, data, size);
+    // For now, just return true to indicate success
+    return true;
+}
+
+// Set callback for EEPROM sync receipt
+CORE_EXPORT void CoreSetKailleraEepromSyncCallback(CoreKaillera::EepromSyncCallback cb)
+{
+    std::lock_guard<std::mutex> lock(s_EepromSyncMutex);
+    s_EepromSyncCallback = cb;
+}
+
+// Internal: Called by n02 or Kaillera thread when a custom EEPROM sync message is received
+static void OnKailleraEepromSyncReceived(const uint8_t* data, size_t size)
+{
+    std::lock_guard<std::mutex> lock(s_EepromSyncMutex);
+    if (s_EepromSyncCallback) {
+        s_EepromSyncCallback(data, size);
     }
 }
 

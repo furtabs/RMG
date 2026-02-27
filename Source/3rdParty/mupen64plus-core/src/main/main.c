@@ -61,6 +61,8 @@
 #include "cheat.h"
 #include "device/device.h"
 #include "device/dd/disk.h"
+#include "device/cart/cart.h"
+#include "device/cart/eeprom.h"
 #include "device/controllers/vru_controller.h"
 #include "device/controllers/paks/biopak.h"
 #include "device/controllers/paks/mempak.h"
@@ -2138,4 +2140,16 @@ m64p_error close_pif(void)
 {
     g_start_address = UINT32_C(0xa4000040);
     return M64ERR_SUCCESS;
+}
+
+static struct cart* g_cart = NULL;
+
+void* CoreGetEepromBuffer(size_t* size) {
+    if (!g_cart) return NULL;
+    return get_eeprom_buffer(&g_cart->eeprom, size);
+}
+
+void CoreSetEepromBuffer(const void* data, size_t size) {
+    if (!g_cart) return;
+    set_eeprom_buffer(&g_cart->eeprom, data, size);
 }

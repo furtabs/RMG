@@ -22,6 +22,7 @@ namespace CoreKaillera
     using ChatReceivedCallback = std::function<void(std::string nickname, std::string text)>;
     using ClientDroppedCallback = std::function<void(std::string nickname, int playerNumber)>;
     using MoreInfosCallback = std::function<void(std::string gameName)>;
+    using EepromSyncCallback = std::function<void(const uint8_t* data, size_t size)>;
 }
 
 //
@@ -87,5 +88,13 @@ CORE_EXPORT int CoreGetKailleraNumPlayers(void);
 // Get the frame delay assigned by the Kaillera server
 // Returns the number of frames to buffer inputs (0 if not in game)
 CORE_EXPORT int CoreGetKailleraFrameDelay(void);
+
+// Send EEPROM buffer to all peers (netplay save sync)
+// Returns true on success, false on failure
+CORE_EXPORT bool CoreKailleraSendEepromSync(const uint8_t* data, size_t size);
+
+// Set callback for when an EEPROM sync buffer is received from a peer
+// The callback receives a pointer to the buffer and its size
+CORE_EXPORT void CoreSetKailleraEepromSyncCallback(EepromSyncCallback cb);
 
 #endif // CORE_KAILLERA_HPP

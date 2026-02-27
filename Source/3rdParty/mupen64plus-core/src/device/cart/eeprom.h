@@ -48,4 +48,7 @@ void eeprom_read_block(struct eeprom* eeprom,
 void eeprom_write_block(struct eeprom* eeprom,
     uint8_t block, const uint8_t* data, uint8_t* status);
 
+void* get_eeprom_buffer(struct eeprom* eep, size_t* size);
+void  set_eeprom_buffer(struct eeprom* eep, const void* data, size_t size);
+
 #endif

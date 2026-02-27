@@ -137,5 +137,8 @@ EXPORT m64p_error CALL CoreGetRomSettings(m64p_rom_settings *, int, int, int);
 }
 #endif
 
+EXPORT void* CALL CoreGetEepromBuffer(size_t* size);
+EXPORT void  CALL CoreSetEepromBuffer(const void* data, size_t size);
+
 #endif /* #define M64P_FRONTEND_H */
 

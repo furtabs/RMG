@@ -44,4 +44,10 @@ bool CoreIsEmulationPaused(void);
 // used for synchronization in netplay/Kaillera
 int CoreGetCurrentFrameCount(void);
 
+// EEPROM buffer access for netplay sync
+// Returns a pointer to the EEPROM buffer and its size (returns false if not available)
+bool CoreGetEepromBuffer(uint8_t** buffer, size_t* size);
+// Overwrites the EEPROM buffer with provided data (returns false if not available)
+bool CoreSetEepromBuffer(const uint8_t* data, size_t size);
+
 #endif // CORE_EMULATION_HPP
